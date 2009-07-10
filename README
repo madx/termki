@@ -1,0 +1,17 @@
+= TermKi
+
+TermKi is a full text wiki, with a REST oriented approach. There is no fancy Web
+front-end, and you interact with bare HTTP requests using curl, RestClient or
+other librairies.
+
+== Usage
+
+To run termki, just edit the termki.ru file to suit your needs (defaults are
+fine though) and run
+
+  $ rackup termki.ru
+
+This will run the Ruby server, and make it accessible at localhost:9292
+
+There is a default home page which can't be removed, you can access it at
+http://localhost:9292/.
