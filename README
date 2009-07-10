@@ -1,17 +1,38 @@
 = TermKi
 
 TermKi is a full text wiki, with a REST oriented approach. There is no fancy Web
-front-end, and you interact with bare HTTP requests using curl, RestClient or
-other librairies.
+front-end, and you interact with bare HTTP requests using curl, Patron, 
+RestClient or other librairies.
+
+TermKi is very basic: you have an index of pages, which can have many revisions.
+That's all.
 
 == Usage
 
 To run termki, just edit the termki.ru file to suit your needs (defaults are
 fine though) and run
-
   $ rackup termki.ru
 
 This will run the Ruby server, and make it accessible at localhost:9292
 
 There is a default home page which can't be removed, you can access it at
-http://localhost:9292/.
+  http://localhost:9292/
+
+== Routes
+
+get /__commit__    commit changes to the store
+get /__index__     show the page index
+get /              == get /home
+get /:page         show the page
+get /:page/:rev    show a given revision for a page
+post /:page        creates a page (give contents=<contents> as parameter)
+put /:page         creates a new revision for a page (same as above)
+delete /:page      deletes a page (except /home)
+delete /:page/:rev deletes a given revision, and the page if there are no
+                   remaining revisions (except for /home)
+
+== Persistence
+
+TermKi uses a single file for storing data. Data is stored each time you access
+/__commit__. The format is simple, it's the Wiki object marshalled and zipped in
+a file.
