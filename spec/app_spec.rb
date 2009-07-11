@@ -14,7 +14,6 @@ describe TermKi do
 
   it 'has extended options' do
     TermKi.should.respond_to :store
-    TermKi.should.respond_to :formatter
   end
 
   describe '.setup!' do

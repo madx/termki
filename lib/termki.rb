@@ -92,18 +92,10 @@ class TermKi < Sinatra::Base
     end
   end
 
+
+  # App
   configure do
-    set :store,     'wiki.db'
-    set :formatter, lambda {
-      lambda { |page, rev|
-        String.new.tap { |out|
-          out << "Resource: /#{page.name}/#{rev.checksum}\n"
-          out << "Modified: #{rev.timestamp.xmlschema}\n"
-          out << "---\n"
-          out << "#{rev.contents}"
-        }
-      }
-    }
+    set :store, 'wiki.db'
   end
 
   @@wiki = nil
@@ -123,8 +115,27 @@ class TermKi < Sinatra::Base
 
   helpers do
     def render(page, rev)
-      options.formatter.call(page, rev)
+      String.new.tap { |out|
+        out << "Resource: /#{page.name}/#{rev.checksum}\n"
+        out << "Modified: #{rev.timestamp.xmlschema}\n"
+        out << "---\n"
+        out << "#{rev.contents}"
+      }
     end
+
+    def valid_page!
+      unless @page = wiki[params[:page]]
+        throw :halt, [404, "Page %s not found" % params[:page] ]
+      end
+    end
+
+    def valid_rev!
+      unless @rev = @page[params[:rev]]
+        throw :halt, [404, "Revision %s not found for page %s" %
+                           [ params[:rev], params[:page] ] ]
+      end
+    end
+
   end
 
   before do
@@ -159,78 +170,65 @@ class TermKi < Sinatra::Base
     redirect '/home'
   end
 
-  get '/:name' do
-    unless page = wiki[params[:name]]
-      throw :halt, [404, "Page %s not found" % params[:name] ]
-    end
-    render page, page.latest
+  get '/:page' do
+    valid_page!
+
+    render @page, @page.latest
   end
 
-  get '/:name/:rev' do
-    unless page = wiki[params[:name]]
-      throw :halt, [404, "Page %s not found" % params[:name] ]
-    end
+  get '/:page/:rev' do
+    valid_page!
+    valid_rev!
 
-    unless rev = wiki[params[:name]][params[:rev]]
-      throw :halt, [404, "Revision %s not found for page %s" %
-                         [ params[:rev], params[:name] ] ]
-    end
-
-    render page, rev
+    render @page, @rev
   end
 
-  post '/:name' do
-    page = Page.new(params[:name])
+  post '/:page' do
+    page = Page.new(params[:page])
     page << (rev = Revision.new(params[:contents]))
+
     begin
       wiki.add page
     rescue RuntimeError => e
       throw :halt, [500, e.message]
     end
+
     render page, rev
   end
 
-  put '/:name' do
-    unless page = wiki[params[:name]]
-      throw :halt, [404, "Page %s not found" % params[:name] ]
-    end
+  put '/:page' do
+    valid_page!
 
-    page << (rev = Revision.new(params[:contents]))
-    render page, rev
+    @page << (rev = Revision.new(params[:contents]))
+
+    render @page, rev
   end
 
-  delete '/:name' do
-    if params[:name] == 'home'
+  delete '/:page' do
+    valid_page!
+
+    if params[:page] == 'home'
       throw :halt, [500, "You can't destroy the home page"]
     end
-    begin
-      wiki.destroy params[:name]
-    rescue
-      throw :halt, [404, "Page %s not found" % params[:name] ]
-    end
-    "Page '#{params[:name]}' has been destroyed"
+    wiki.destroy params[:page]
+
+    "Page '#{params[:page]}' has been destroyed"
   end
 
-  delete '/:name/:rev' do
-    unless page = wiki[params[:name]]
-      throw :halt, [404, "Page %s not found" % params[:name] ]
-    end
+  delete '/:page/:rev' do
+    valid_page!
+    valid_rev!
 
-    unless rev = page[params[:rev]]
-      throw :halt, [404, "Revision %s not found for page %s" %
-                         [ params[:rev], params[:name] ] ]
-    end
-
-    if params[:name] == 'home' && page.revisions.size == 1
+    if params[:page] == 'home' && @page.revisions.size == 1
       throw :halt, [500, "You can't destroy the home page"]
     end
 
-    page.revisions.delete(rev.checksum)
+    @page.revisions.delete(@rev.checksum)
 
     out = "Revision #{params[:rev]} has been destroyed"
-    if page.revisions.empty?
-      wiki.destroy page.name
-      out << "\nPage '#{page.name}' has been destroyed"
+    if @page.revisions.empty?
+      wiki.destroy @page.name
+      out << "\nPage '#{@page.name}' has been destroyed"
     end
     out + "\n"
   end
