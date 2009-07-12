@@ -125,13 +125,13 @@ class TermKi < Sinatra::Base
 
     def valid_page!
       unless @page = wiki[params[:page]]
-        throw :halt, [404, "Page %s not found" % params[:page] ]
+        throw :halt, [404, "Page '%s' not found" % params[:page] ]
       end
     end
 
     def valid_rev!
       unless @rev = @page[params[:rev]]
-        throw :halt, [404, "Revision %s not found for page %s" %
+        throw :halt, [404, "Revision %s not found for page '%s'" %
                            [ params[:rev], params[:page] ] ]
       end
     end
