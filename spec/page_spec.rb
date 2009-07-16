@@ -18,6 +18,15 @@ describe TermKi::Page do
         page.should.not.respond_to "#{meth}="
       end
     end
+
+    it 'has mode an groups read-write attributes' do
+      page = TermKi::Page.new('page')
+      [:mode, :mode=, :groups, :groups=].each do |meth|
+        page.should.respond_to meth
+      end
+      page.mode.should == :open
+      page.groups.should.be.empty?
+    end
   end
 
   before do

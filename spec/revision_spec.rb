@@ -29,7 +29,7 @@ describe TermKi::Revision do
 
     it 'sets the checksum' do
       @rev.bind @page
-      @rev.checksum.should =~ /\A[a-f0-9]{40}\Z/
+      @rev.checksum.should =~ /\A[a-f0-9]{64}\Z/
     end
 
     it 'adds random to the checksum to avoid collisions' do

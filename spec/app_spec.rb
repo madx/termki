@@ -7,6 +7,8 @@ class File
 end
 
 TermKi.set :environment, :test
+acl = RealFile.read(RealFile.join(RealFile.dirname(__FILE__), 'users.yml'))
+TermKi::ACL.load(YAML.load(acl))
 
 Bacon::Context.send :include, Rack::Test::Methods
 
@@ -68,6 +70,7 @@ describe TermKi do
       def app() TermKi end
       TermKi.setup!
       @wiki = TermKi.class_eval('@@wiki')
+      authorize 'admin', 'god'
     end
 
     describe 'content_type' do
@@ -85,6 +88,18 @@ describe TermKi do
           body.should =~ %r{#{@wiki['home'].latest.checksum}}
           body.should =~ %r{#{@wiki['about'].latest.checksum}}
         end
+      end
+    end
+
+    describe 'get /__commit__' do
+      it 'is only allowed to admins' do
+        authorize 'foo', 'bar'
+        get '/__commit__'
+        last_response.status.should == 401
+
+        authorize 'admin', 'god'
+        get '/__commit__'
+        last_response.should.be.ok
       end
     end
 
@@ -140,6 +155,13 @@ describe TermKi do
         last_response.body.should.include "Hello, world"
 
         @wiki['new'].should.not.be.nil
+      end
+
+      it 'takes an optional mode' do
+        post '/new', :contents => "Hello, world", :mode => 'private'
+        last_response.should.be.ok
+
+        @wiki['new'].mode.should == :private
       end
 
       it 'raises an error if the page already exists' do

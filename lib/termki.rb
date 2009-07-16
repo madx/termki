@@ -1,6 +1,9 @@
 require 'sinatra/base'
-require 'digest/sha1'
+require 'digest/sha2'
 require 'zlib'
+require File.join(File.dirname(__FILE__), 'sinatra', 'authorization')
+
+Sinatra::Authorization.const_set :Realm, 'TermKi'
 
 class TermKi < Sinatra::Base
 
@@ -35,10 +38,13 @@ class TermKi < Sinatra::Base
 
 
   class Page
-    attr_reader :name, :revisions
+    attr_reader   :name, :revisions
+    attr_accessor :mode, :groups
 
     def initialize(name)
       @name = name
+      @mode = :open
+      @groups = []
       @revisions = {}
     end
 
@@ -84,7 +90,7 @@ class TermKi < Sinatra::Base
 
     def bind(page)
       fail "already bound to #{page.name}" if @checksum
-      @checksum = Digest::SHA1.hexdigest([
+      @checksum = Digest::SHA2.hexdigest([
         rand,
         page.name,
         @timestamp.to_i
@@ -93,11 +99,59 @@ class TermKi < Sinatra::Base
   end
 
 
-  # App
-  configure do
-    set :store, 'wiki.db'
+  class User
+    attr_reader :password, :groups
+
+    def initialize(password, groups)
+      @password, @groups = password, groups || []
+    end
+
+    def in_groups?(groups)
+      groups.any? {|g| @groups.include?(g) }
+    end
+
+    def admin?
+      groups.include?('wheel')
+    end
   end
 
+
+  module ACL
+    class << self
+      def load(acl_hash)
+        @users = {}
+        acl_hash.each do |user, params|
+          @users[user] = User.new(params[:password], params[:groups])
+        end
+      end
+
+      def login(user, password)
+        return false unless @users.key?(user)
+        @users[user].password == Digest::SHA2.hexdigest(password)
+      end
+
+      def user(name)
+        @users[name]
+      end
+
+      def authorize(user, page, right)
+        if user || TermKi.open
+          user ||= User.new(nil, nil)
+          return true if user.in_groups?(page.groups)  ||
+                         user.admin?                   ||
+                         page.groups.empty?            ||
+                         page.mode == :open            ||
+                         page.mode == :restricted && right == :r
+          false
+        else
+          [page.mode, right] == [:open, :r]
+        end
+      end
+    end
+  end
+
+
+  # App
   @@wiki = nil
   def wiki() @@wiki end
 
@@ -113,7 +167,19 @@ class TermKi < Sinatra::Base
     end
   end
 
+  configure do
+    set :store, 'wiki.db'
+    set :open,  false
+    set :realm, "TermKi"
+  end
+
   helpers do
+    include Sinatra::Authorization
+
+    def authorize(username, password)
+      ACL.login(username, password)
+    end
+
     def render(page, rev)
       String.new.tap { |out|
         out << "Resource: /#{page.name}/#{rev.checksum}\n"
@@ -136,13 +202,24 @@ class TermKi < Sinatra::Base
       end
     end
 
+    def admin_only!
+      unless current_user && ACL.user(current_user).admin?
+        unauthorized!
+      end
+    end
+
+    def filter!(page, mode)
+      ACL.authorize(ACL.user(current_user), page, mode) || unauthorized!
+    end
   end
 
   before do
     content_type 'text/plain'
+    user_login
   end
 
   get '/__commit__' do
+    admin_only!
     begin
       File.open(options.store, 'w+') { |s| wiki.dump(s) }
       "Changes have been commited"
@@ -172,12 +249,15 @@ class TermKi < Sinatra::Base
 
   get '/:page' do
     valid_page!
+    filter!(@page, :r)
 
     render @page, @page.latest
   end
 
   get '/:page/:rev' do
     valid_page!
+    filter! @page, :r
+
     valid_rev!
 
     render @page, @rev
@@ -185,6 +265,9 @@ class TermKi < Sinatra::Base
 
   post '/:page' do
     page = Page.new(params[:page])
+    if params[:mode] && %w[open restricted private].include?(params[:mode])
+      page.mode = params[:mode].to_sym
+    end
     page << (rev = Revision.new(params[:contents]))
 
     begin
@@ -198,6 +281,7 @@ class TermKi < Sinatra::Base
 
   put '/:page' do
     valid_page!
+    filter! @page, :w
 
     @page << (rev = Revision.new(params[:contents]))
 
@@ -206,6 +290,7 @@ class TermKi < Sinatra::Base
 
   delete '/:page' do
     valid_page!
+    filter! @page, :w
 
     if params[:page] == 'home'
       throw :halt, [500, "You can't destroy the home page"]
@@ -217,6 +302,8 @@ class TermKi < Sinatra::Base
 
   delete '/:page/:rev' do
     valid_page!
+    filter! @page, :w
+
     valid_rev!
 
     if params[:page] == 'home' && @page.revisions.size == 1

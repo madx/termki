@@ -1,6 +1,9 @@
-require File.join(File.dirname(__FILE__), 'lib', 'termki')
+this = File.dirname(__FILE__)
 
-TermKi.set :store, File.join(File.dirname(__FILE__), 'wiki.db')
+require File.join(this, 'lib', 'termki')
+
+TermKi::ACL.load(YAML.load_file(File.join(this, 'users.yml')))
+TermKi.set :store, File.join(this, 'wiki.db')
 
 TermKi.setup!
 
