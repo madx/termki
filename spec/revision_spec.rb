@@ -13,6 +13,10 @@ describe TermKi::Revision do
       @rev.timestamp.should.be.kind_of Time
     end
 
+    it 'does not set the checksum' do
+      @rev.checksum.should.be.nil
+    end
+
     it 'has contents, timestamp and checksum read-only attributes' do
       [:contents, :timestamp, :checksum].each do |meth|
         @rev.should.respond_to     meth
@@ -32,12 +36,14 @@ describe TermKi::Revision do
       @rev.checksum.should =~ /\A[a-f0-9]{64}\Z/
     end
 
-    it 'adds random to the checksum to avoid collisions' do
+    it 'adds object_id to the checksum to avoid collisions' do
       rev1 = TermKi::Revision.new('Contents')
-      rev2 = TermKi::Revision.new('Contents')
-      rev1.bind @page
-      rev2.bind @page
-      rev1.checksum.should.not == rev2.checksum
+      rev1.bind(@page)
+      rev1.checksum.should == Digest::SHA2.hexdigest([
+        rev1.object_id,
+        @page.name,
+        rev1.timestamp.to_i
+      ].join('+'))
     end
 
     it 'raises an error if the checksum is already set' do
