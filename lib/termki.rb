@@ -34,7 +34,11 @@ module TermKi
         http_error 403, "'#{name}' is reserved"
       end
       if body = rack.data[:body]
-        page = Page.new(name)
+        begin
+          page = Page.new(name)
+        rescue => e
+          http_error(500, "Can't create '#{name}': #{e.message}")
+        end
         page << Revision.new(body)
         wiki.add page
         page.latest.render
@@ -92,7 +96,7 @@ module TermKi
             http_error(404, "No such revision '#{rev}'")
           end
         rescue RuntimeError => e
-          http_error 400, e.message
+          http_error 400, "#{rev}: #{e.message}"
         end
       end
     end
@@ -133,7 +137,7 @@ module TermKi
     attr_reader :name, :history
 
     def initialize(name)
-      fail "wrong name" unless name =~ /^[a-zA-Z0-9_:\+-]+$/
+      fail "wrong name" unless name =~ /^[a-zA-Z0-9_:-]+$/
       @name = name
       @history = []
     end
