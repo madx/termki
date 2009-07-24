@@ -18,6 +18,25 @@ describe TermKi::Page do
         page.should.not.respond_to "#{meth}="
       end
     end
+
+    it 'fails if the name does not match [a-zA-Z0-9_-:\+]' do
+      [
+        lambda { TermKi::Page.new('pass') },
+        lambda { TermKi::Page.new('p4ss') },
+        lambda { TermKi::Page.new('p-a_ss') },
+        lambda { TermKi::Page.new('PASS') },
+        lambda { TermKi::Page.new('pa+ss') },
+        lambda { TermKi::Page.new('pas:s') },
+      ].each { |l| l.should.not.raise }
+      [
+        lambda { TermKi::Page.new('(fail)') },
+        lambda { TermKi::Page.new('"fail"') },
+        lambda { TermKi::Page.new('\'fail') },
+        lambda { TermKi::Page.new('$fail')  },
+        lambda { TermKi::Page.new('fa il')  },
+        lambda { TermKi::Page.new('#fail')  }
+      ].each { |l| l.should.raise }
+    end
   end
 
   before do

@@ -54,4 +54,15 @@ describe TermKi::Revision do
     end
   end
 
+  describe '#render' do
+    it 'outputs a pretty version of the revision' do
+      rev = TermKi::Revision.new("Contents")
+      rev.bind Struct.new(:name).new('page')
+      output = rev.render
+      output.should.include rev.checksum
+      output.should.include rev.timestamp.xmlschema
+      output.should.include rev.contents
+    end
+  end
+
 end
