@@ -1,8 +1,5 @@
-this = File.dirname(__FILE__)
-require File.join(this, 'lib', 'termki')
+require File.join(File.dirname(__FILE__), 'lib', 'termki')
 
-wiki = if db = File.exist?(File.join(File.dirname(__FILE__), 'wiki.db'))
-  File.open(db, 'r') { |data| TermKi::Wiki.load data }
-else nil end
+TermKi::App.store_to File.join(File.dirname(__FILE__), 'wiki.db')
 
-run TermKi::App.new(wiki)
+run TermKi::App.new

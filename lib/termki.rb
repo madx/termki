@@ -8,29 +8,36 @@ module TermKi
   class App
     include Rackable
 
+    @@store = nil
+
     attr_reader :wiki
 
-    def initialize(base_wiki=nil)
-      if base_wiki.nil?
+    def self.store_to(file)
+      @@store = file
+    end
+
+    def initialize
+      if File.exist?(@@store)
+        @wiki = Wiki.load(File.read(@@store))
+      else
         @wiki = Wiki.new
         homepage = Page.new('home')
         homepage << Revision.new('Welcome to TermKi!')
         wiki.add(homepage)
-      else
-        @wiki = base_wiki
       end
     end
 
     def get(name=nil,rev=nil)
       case name
         when '_index_': index
+        when '_commit_': commit
         else page(name, rev)
       end
     end
 
     def post(name)
       http_error 403, "Can't create '#{name}': already exists" if wiki[name]
-      if %w[__index__].include?(name)
+      if %w[_index_ _commit_].include?(name)
         http_error 403, "'#{name}' is reserved"
       end
       if body = rack.data[:body]
@@ -58,7 +65,8 @@ module TermKi
       end
     end
 
-    def delete(name)
+    def delete(name=nil)
+      http_error 403 if name.nil? || name == 'home'
       http_error 404, "No such page '#{name}'" unless wiki[name]
       wiki.destroy(name)
       nil
@@ -72,6 +80,11 @@ module TermKi
           out << wiki[name].latest.render(:no_contents)
         end
       end
+    end
+
+    def commit
+      @wiki.dump @@store
+      "Changes committed"
     end
 
     def history(page)
@@ -106,8 +119,8 @@ module TermKi
   class Wiki
     attr_reader :index
 
-    def self.load(fileish)
-      Marshal.load(Zlib::Inflate.inflate(fileish.read))
+    def self.load(string)
+      Marshal.load(Zlib::Inflate.inflate(string))
     end
 
     def initialize
@@ -127,8 +140,10 @@ module TermKi
       @index.delete(name) { |el| fail "no such page \"#{el}\"" }
     end
 
-    def dump(fileish)
-      fileish << Zlib::Deflate.deflate(Marshal.dump(self))
+    def dump(file)
+      File.open(file, 'w+') do |out|
+        out.write Zlib::Deflate.deflate(Marshal.dump(self))
+      end
     end
   end
 
