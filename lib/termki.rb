@@ -28,6 +28,7 @@ module TermKi
     end
 
     def get(name=nil,rev=nil)
+      serve_plain_text!
       case name
         when '_index_': index
         when '_commit_': commit
@@ -36,6 +37,7 @@ module TermKi
     end
 
     def post(name)
+      serve_plain_text!
       http_error 403, "Can't create '#{name}': already exists" if wiki[name]
       if %w[_index_ _commit_].include?(name)
         http_error 403, "'#{name}' is reserved"
@@ -55,6 +57,7 @@ module TermKi
     end
 
     def put(name)
+      serve_plain_text!
       http_error 404, "No such page '#{name}'" unless wiki[name]
       if body = rack.query[:body] || rack.data[:body]
         rev = Revision.new(body)
@@ -66,6 +69,7 @@ module TermKi
     end
 
     def delete(name=nil)
+      serve_plain_text!
       http_error 403 if name.nil? || name == 'home'
       http_error 404, "No such page '#{name}'" unless wiki[name]
       wiki.destroy(name)
@@ -73,6 +77,10 @@ module TermKi
     end
 
     private
+
+    def serve_plain_text!
+      rack.response.header['Content-Type'] = 'text/plain'
+    end
 
     def index
       String.new.tap do |out|
